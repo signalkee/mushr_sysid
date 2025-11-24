@@ -44,7 +44,7 @@ def plot_trajectory(traj, title='Trajectory'):
     plt.title(title)
     plt.legend()
     plt.tight_layout()
-    plt.show()
+    # plt.show()
 
 class Rate:
     def __init__(self, frequency):
@@ -89,7 +89,7 @@ def generate_curved_path(start_pose, dis=1, curvature=0, num_points=100):
         return traj
 
 def main():
-    sim_env = gym.make("MushrBlock-v0", render_mode="human", xml_file="sysid_env3.xml")
+    sim_env = gym.make("MushrBlock-v0", render_mode="rgb_array", xml_file="sysid_env3.xml")
     car_start = [1, -1.0, np.pi/2]
 
     # TODO: bug - block orientation not affected by init state
@@ -103,7 +103,7 @@ def main():
     rate = Rate(1/dt)
 
     start_time = time.time()
-    max_time = 200
+    max_time = 20
     push_controller = PushingController()
     straight_line_path = generate_curved_path(block_start, dis=2, curvature=0, num_points=20)
     goal_reached = False
@@ -132,6 +132,7 @@ def main():
         obs, _, _, _, _ = sim_env.step(action)
         rate.sleep()
     sim_env.close()
+    return obs
 
 if __name__ == "__main__":
-    main()
+    c = main()
