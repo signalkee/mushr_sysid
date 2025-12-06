@@ -81,7 +81,7 @@ def run_ssi_mpc(env, trajectory, max_steps=400):
         'b': b,
         'input': list(range(11)),
         'target': [8, 9, 10],
-        'lr': 0.2
+        'lr': 0.01
     }
     
     # Create controller
@@ -394,17 +394,17 @@ def main():
     block_start = [1.0, -0.7, np.pi/2]
     
     # Generate trajectory (semicircle - same as main.py line 132)
-    r = 5.0
-    trajectory = generate_curved_path(block_start, dis=np.pi*r, curvature=1/r, num_points=200)
+    r = 10.0
+    trajectory = generate_curved_path(block_start, dis=np.pi*r*1/2, curvature=1/r, num_points=50)
     print(f"\nTrajectory: Semicircle with {len(trajectory)} waypoints")
     
     # Experiment 1: SSI-MPC
-    env1 = gym.make("MushrBlock-v0", render_mode="rgb_array", xml_file="sysid_env3.xml")
+    env1 = gym.make("MushrBlock-v0", render_mode="human", xml_file="sysid_env3.xml")
     env1.reset()
     init_state = np.concatenate((pose_euler2quat(car_start), pose_euler2quat(block_start)))
     obs1 = env1.unwrapped.set_init_states(init_state)
     
-    ssi_results = run_ssi_mpc(env1, trajectory, max_steps=3500)
+    ssi_results = run_ssi_mpc(env1, trajectory, max_steps=1900)
     env1.close()
     
     # Experiment 2: MPPI

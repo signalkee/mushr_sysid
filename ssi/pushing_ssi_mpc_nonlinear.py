@@ -239,10 +239,10 @@ class PushingSSIMpcNonlinear:
         U = opti.variable(self.u_dim, N)
         
         # Cost weights
-        Q_pos = 5.0
-        Q_theta = 10.0
-        Q_contact = 12.0
-        R_steering = 0.5
+        Q_pos = 27.0
+        Q_theta = 15.0
+        Q_contact = 20.0
+        R_steering = 0.2
         R_accel = 0.1
         
         cost = 0

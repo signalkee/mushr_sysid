@@ -54,7 +54,7 @@ def generate_curved_path(start_pose, dis=1, curvature=0, num_points=100):
     return traj
 
 
-def run_controller(env, controller, controller_name, trajectory, max_steps=400):
+def run_controller(env, controller, controller_name, trajectory, max_steps=700):
     """Generic function to run any controller and collect metrics."""
     print(f"\n{'='*70}")
     print(f"Running: {controller_name}")
@@ -308,17 +308,17 @@ def main():
     block_start = [1.0, -0.7, np.pi/2]
     
     # Trajectory (semicircle)
-    trajectory = generate_curved_path(block_start, dis=np.pi, curvature=0.5, num_points=50)
+    trajectory = generate_curved_path(block_start, dis=np.pi, curvature=0.5, num_points=100)
     print(f"\nTrajectory: Semicircle, {len(trajectory)} waypoints")
     
-    max_steps = 400
+    max_steps = 700
     results_list = []
     
     # ========================================================================
     # EXPERIMENT 1: SSI-MPC
     # ========================================================================
     
-    env1 = gym.make("MushrBlock-v0", render_mode="rgb_array", xml_file="sysid_env3.xml")
+    env1 = gym.make("MushrBlock-v0", render_mode="human", xml_file="sysid_env3.xml")
     env1.reset()
     init_state = np.concatenate((pose_euler2quat(car_start), pose_euler2quat(block_start)))
     env1.unwrapped.set_init_states(init_state)
@@ -331,7 +331,7 @@ def main():
     omega = np.random.normal(0.0, 0.3, (20, 11))
     b = np.random.uniform(0.0, 2.0 * np.pi, (20, 1))
     rf_dict = {'n_rf': 20, 'omega': omega, 'b': b, 
-               'input': list(range(11)), 'target': [8, 9, 10], 'lr': 0.2}
+               'input': list(range(11)), 'target': [8, 9, 10], 'lr': 0.02}
     
     ssi_mpc_controller = PushingSSIMpcNonlinear(
         'ssi_mpc', car_ssi_mpc, 0.15, 8, rf_dict, true_mass=0.8, true_friction=0.5
@@ -378,7 +378,7 @@ def main():
     
     ssi_mppi_results = run_controller(env3, ssi_mppi_controller, "SSI-MPPI", trajectory, max_steps)
     env3.close()
-    results_list.append(ssi_mppi_results)
+    # results_list.append(ssi_mppi_results)
     
     # ========================================================================
     # COMPARISON
