@@ -40,14 +40,14 @@ class SoloCarController():
 
     def reset(self):
         self.cost = CarCostFunctions()
-        TIMESTEPS = 20  # T
-        N_SAMPLES = 100  # K
+        TIMESTEPS = 50  # T
+        N_SAMPLES = 500  # K
         ACTION_LOW = [-0.34, 0]
-        ACTION_HIGH = [0.34, 0.4]
+        ACTION_HIGH = [0.34, 0.15]
 
         self.d = 'cpu'
         nx = 3
-        noise_sigma = torch.tensor([[0.03, 0.0],
+        noise_sigma = torch.tensor([[0.09, 0.0],
                                     [0.0, .05]], device=self.d, dtype=torch.float32)
         lambda_ = 1e-2
         noise_mu = torch.tensor([0.0, 0.2], device=self.d, dtype=torch.torch.float32)
