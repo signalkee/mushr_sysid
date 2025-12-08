@@ -126,7 +126,7 @@ def run_controller(env, controller, controller_name, trajectory, max_steps=700):
                 idx = min(ref_idx + i, len(trajectory) - 1)
                 ref_traj[i, :] = trajectory[idx, :]
             
-            status, x_traj, u_traj = controller.solve_mpc(state, ref_traj, dt=0.02, verbose=False)
+            status, x_traj, u_traj = controller.solve_mpc(state, ref_traj, dt=0.05, verbose=False)
             if status == 0:
                 steering = u_traj[0, 0]
                 velocity = max(0.15, x_traj[1, 3] if x_traj.shape[0] > 1 else 0.15)
@@ -308,22 +308,24 @@ def main():
     block_start = [1.0, -0.7, np.pi/2]
     
     # Trajectory (semicircle)
-    trajectory = generate_curved_path(block_start, dis=np.pi, curvature=0.5, num_points=100)
+    rad = 1
+    # 1.0, 2.0, 1/0.3
+    trajectory = generate_curved_path(block_start, dis=np.pi*rad*0.5, curvature=1/rad, num_points=50)
     print(f"\nTrajectory: Semicircle, {len(trajectory)} waypoints")
     
-    max_steps = 700
+    max_steps = 1650
     results_list = []
     
     # ========================================================================
     # EXPERIMENT 1: SSI-MPC
     # ========================================================================
     
-    env1 = gym.make("MushrBlock-v0", render_mode="human", xml_file="sysid_env3.xml")
+    env1 = gym.make("MushrBlock-v0", render_mode="human", xml_file="sysid_env2.xml")
     env1.reset()
     init_state = np.concatenate((pose_euler2quat(car_start), pose_euler2quat(block_start)))
     env1.unwrapped.set_init_states(init_state)
     
-    # Create SSI-MPC
+    # # Create SSI-MPC
     car_ssi_mpc = AckermannCar()
     car_ssi_mpc.block_mass_nominal = 0.3
     car_ssi_mpc.block_friction_nominal = 0.2
@@ -341,11 +343,11 @@ def main():
     env1.close()
     results_list.append(ssi_mpc_results)
     
-    # ========================================================================
-    # EXPERIMENT 2: MPPI (Original)
-    # ========================================================================
+    # # ========================================================================
+    # # EXPERIMENT 2: MPPI (Original)
+    # # ========================================================================
     
-    env2 = gym.make("MushrBlock-v0", render_mode="rgb_array", xml_file="sysid_env3.xml")
+    env2 = gym.make("MushrBlock-v0", render_mode="human", xml_file="sysid_env2.xml")
     env2.reset()
     env2.unwrapped.set_init_states(init_state)
     
@@ -360,24 +362,22 @@ def main():
     # EXPERIMENT 3: SSI-MPPI
     # ========================================================================
     
-    env3 = gym.make("MushrBlock-v0", render_mode="rgb_array", xml_file="sysid_env3.xml")
-    env3.reset()
-    env3.unwrapped.set_init_states(init_state)
+    # env3rapped.set_init_states(init_state)
     
-    ssi_mppi_controller = PushingSSIMPPI(
-        device='cpu',
-        n_rf=20,
-        lr=0.2,
-        kernel_std=0.3,
-        nominal_mass=0.3,
-        nominal_friction=0.2,
-        true_mass=0.8,
-        true_friction=0.5
-    )
-    ssi_mppi_controller.set_trajectory(torch.tensor(trajectory, dtype=torch.float32))
+    # ssi_mppi_controller = PushingSSIMPPI(
+    #     device='cpu',
+    #     n_rf=20,
+    #     lr=0.25,
+    #     kernel_std=0.3,
+    #     nominal_mass=0.3,
+    #     nominal_friction=0.2,
+    #     true_mass=0.8,
+    #     true_friction=0.5
+    # )
+    # ssi_mppi_controller.set_trajectory(torch.tensor(trajectory, dtype=torch.float32))
     
-    ssi_mppi_results = run_controller(env3, ssi_mppi_controller, "SSI-MPPI", trajectory, max_steps)
-    env3.close()
+    # ssi_mppi_results = run_controller(env3, ssi_mppi_controller, "SSI-MPPI", trajectory, max_steps)
+    # env3.close()
     # results_list.append(ssi_mppi_results)
     
     # ========================================================================

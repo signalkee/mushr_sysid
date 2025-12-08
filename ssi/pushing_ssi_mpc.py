@@ -45,7 +45,7 @@ class PushingSSIMpc:
         self.car = car
         self.horizon = horizon
         self.num_steps = num_steps
-        self.dt = horizon / num_steps
+        self.dt = 0.05
         
         # State and control dimensions
         self.state_dim = 11  # [car(5), block(6)]
@@ -128,34 +128,49 @@ class PushingSSIMpc:
         omega_car_dot = (self.accel / L) * cs.tan(self.steering)
         
         # --- Block dynamics (quasi-static nominal + SSI residuals) ---
-        # Nominal: block rigidly follows car front bumper
+        # Contact detection: block dynamics only apply when car is in contact with block
         bumper_x = self.x_car + offset * cs.cos(self.theta_car)
         bumper_y = self.y_car + offset * cs.sin(self.theta_car)
+        
+        # Contact parameters
+        contact_threshold = 0.15  # meters - maximum distance for contact (block size ~0.1m + margin)
+        min_push_velocity = 0.1  # m/s - minimum car velocity to push
+        friction_coeff = 0.3  # Friction coefficient for block when not in contact
+        
+        # Distance from block to bumper
+        dx_contact = self.x_block - bumper_x
+        dy_contact = self.y_block - bumper_y
+        contact_distance = cs.sqrt(dx_contact**2 + dy_contact**2 + 1e-6)  # Add epsilon for numerical stability
+        
+        # Check if in contact: distance < threshold AND car is moving forward
+        is_in_contact = cs.fmax(0, cs.fmin(1, (contact_threshold - contact_distance) / 0.01))  # Smooth step
+        is_pushing = cs.fmax(0, cs.fmin(1, (self.v_car - min_push_velocity) / 0.05))  # Smooth step for velocity
+        contact_active = is_in_contact * is_pushing  # Both conditions must be true
         
         # Position derivatives (integrate from velocities - actual states)
         x_block_dot = self.vx_block
         y_block_dot = self.vy_block
         theta_block_dot = self.omega_block
         
-        # Nominal velocity (quasi-static: block follows bumper)
-        vx_block_nominal_dot = self.v_car * cs.cos(self.theta_car) - \
-                               offset * theta_car_dot * cs.sin(self.theta_car)
-        vy_block_nominal_dot = self.v_car * cs.sin(self.theta_car) + \
-                               offset * theta_car_dot * cs.cos(self.theta_car)
-        omega_block_nominal_dot = theta_car_dot
+        # Nominal velocity (quasi-static: block follows bumper) - only when in contact
+        vx_block_nominal_dot = (self.v_car * cs.cos(self.theta_car) - \
+                               offset * theta_car_dot * cs.sin(self.theta_car)) * contact_active
+        vy_block_nominal_dot = (self.v_car * cs.sin(self.theta_car) + \
+                               offset * theta_car_dot * cs.cos(self.theta_car)) * contact_active
+        omega_block_nominal_dot = theta_car_dot * contact_active
         
-        # Nominal accelerations (differentiating nominal velocities)
-        vx_block_nominal_ddot = self.accel * cs.cos(self.theta_car) - \
+        # Nominal accelerations (differentiating nominal velocities) - only when in contact
+        vx_block_nominal_ddot = (self.accel * cs.cos(self.theta_car) - \
                                 self.v_car * theta_car_dot * cs.sin(self.theta_car) - \
                                 offset * (theta_car_dot**2 * cs.cos(self.theta_car) + \
-                                         omega_car_dot * cs.sin(self.theta_car))
+                                         omega_car_dot * cs.sin(self.theta_car))) * contact_active
         
-        vy_block_nominal_ddot = self.accel * cs.sin(self.theta_car) + \
+        vy_block_nominal_ddot = (self.accel * cs.sin(self.theta_car) + \
                                 self.v_car * theta_car_dot * cs.cos(self.theta_car) - \
                                 offset * (theta_car_dot**2 * cs.sin(self.theta_car) - \
-                                         omega_car_dot * cs.cos(self.theta_car))
+                                         omega_car_dot * cs.cos(self.theta_car))) * contact_active
         
-        omega_block_nominal_ddot = omega_car_dot
+        omega_block_nominal_ddot = omega_car_dot * contact_active
         
         # Compute random features
         Z = cs.vertcat(self.x, self.u)  # All states and controls
@@ -164,11 +179,14 @@ class PushingSSIMpc:
         # SSI augmentation: learned residuals
         residuals = cs.mtimes(self.alpha, rf)  # (len(target_mask) x 1)
         
-        # Apply residuals to block accelerations (target_mask selects which)
-        # Assuming target_mask = [8, 9, 10] for [vx_block_dot, vy_block_dot, omega_block_dot]
-        vx_block_dot = vx_block_nominal_ddot + residuals[0]
-        vy_block_dot = vy_block_nominal_ddot + residuals[1]
-        omega_block_dot = omega_block_nominal_ddot + residuals[2]
+        # Apply residuals to block accelerations (only when in contact)
+        # When not in contact, apply friction to decay block velocities
+        vx_block_dot = (vx_block_nominal_ddot + residuals[0]) * contact_active - \
+                       friction_coeff * self.vx_block * (1.0 - contact_active)
+        vy_block_dot = (vy_block_nominal_ddot + residuals[1]) * contact_active - \
+                       friction_coeff * self.vy_block * (1.0 - contact_active)
+        omega_block_dot = (omega_block_nominal_ddot + residuals[2]) * contact_active - \
+                          friction_coeff * self.omega_block * (1.0 - contact_active)
         
         # Full state derivative
         x_dot = cs.vertcat(x_car_dot, y_car_dot, theta_car_dot, v_car_dot, omega_car_dot,
